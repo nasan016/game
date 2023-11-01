@@ -19,6 +19,7 @@ func main() {
 		game.Input()
 	}
 
+	game.Quit()
 	rl.CloseWindow()
 
 }
