@@ -12,7 +12,7 @@ func main() {
 	rl.SetTargetFPS(60)
 
 	game := game.NewGame()
-
+	defer game.Unload()
 	for !rl.WindowShouldClose() {
 		game.Update()
 		game.Draw()
