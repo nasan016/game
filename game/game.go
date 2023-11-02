@@ -28,6 +28,9 @@ var (
 	playerUp, playerDown, playerRight, playerLeft bool
 	playerFrameCount                              int
 
+	backgroundOffsetX int32
+	backgroundOffsetY int32
+
 	slimeSprite rl.Texture2D
 )
 
@@ -50,7 +53,7 @@ func NewGame() (g Game) {
 }
 
 func (g *Game) Init() {
-	backgroundTexture = rl.LoadTexture("res/background.jpg")
+	backgroundTexture = rl.LoadTexture("res/background.png")
 	tileWidth = backgroundTexture.Width
 	tileHeight = backgroundTexture.Height
 
@@ -62,13 +65,15 @@ func (g *Game) Init() {
 		rl.NewRectangle(0, 0, 34, 34),
 		rl.NewVector2(g.Player.PlayerDest.X, g.Player.PlayerDest.Y),
 		playerSprite,
-		2.0,
+		1.5,
+		100,
+		0,
 	}
 
 	g.CreatePlayArea()
 	frameCount = 0
 
-	cam = rl.NewCamera2D(rl.NewVector2(float32(ScreenWidth/2), float32(ScreenHeight/2)), g.Player.Position, 0, 2.0)
+	cam = rl.NewCamera2D(rl.NewVector2(float32(ScreenWidth/2)-34, float32(ScreenHeight/2)-34), rl.NewVector2(float32(g.Player.PlayerDest.X-(g.Player.PlayerDest.Width/2)), float32(g.Player.PlayerDest.Y-g.Player.PlayerDest.Height/2)), 0, 2.0)
 }
 
 func (g *Game) Unload() {
@@ -82,11 +87,23 @@ func (g *Game) CreatePlayArea() {
 	g.PlayArea4 = rl.NewVector2(g.Player.Position.X+(ScreenWidth/2), g.Player.Position.Y+(ScreenHeight/2))
 }
 
-func (g *Game) TargetPlayer() {
-	var seperationRadius float32 = 30
+func (g *Game) CheckCollision() {
+	playerRect := rl.NewRectangle(g.Player.Position.X+4, g.Player.Position.Y+4, 28, 28)
+
 	for i := range g.Slimes {
-		g.Slimes[i].Position.X += (g.Player.Position.X - g.Slimes[i].Position.X) / 250
-		g.Slimes[i].Position.Y += (g.Player.Position.Y - g.Slimes[i].Position.Y) / 250
+		slimeRect := rl.NewRectangle(g.Slimes[i].Position.X, g.Slimes[i].Position.Y, 34, 24)
+		if rl.CheckCollisionRecs(playerRect, slimeRect) {
+			fmt.Println("hit")
+			g.Player.HP -= 10
+		}
+	}
+}
+
+func (g *Game) TargetPlayer() {
+	var seperationRadius float32 = 35
+	for i := range g.Slimes {
+		g.Slimes[i].Position.X += (g.Player.Position.X - g.Slimes[i].Position.X) / 300
+		g.Slimes[i].Position.Y += (g.Player.Position.Y - g.Slimes[i].Position.Y) / 300
 
 		for j := range g.Slimes {
 			if i != j {
@@ -136,7 +153,7 @@ func (g *Game) SpawnEnemy() {
 		SpawnY = minY
 	}
 
-	if frameCount%20 == 0 {
+	if frameCount%20 == 0 && len(g.Slimes) < 1 {
 		g.Slimes = append(g.Slimes, Slime{rl.NewVector2(float32(SpawnX), float32(SpawnY)), 500, slimeSprite})
 	}
 }
@@ -161,6 +178,11 @@ func (g *Game) Update() {
 		g.WindowShouldClose = true
 	}
 
+	g.Player.Position.X = g.Player.PlayerDest.X
+	g.Player.Position.Y = g.Player.PlayerDest.Y
+
+	backgroundOffsetX = int32(g.Player.Position.X) % int32(tileWidth)
+	backgroundOffsetY = int32(g.Player.Position.Y) % int32(tileHeight)
 	//spawn enemy on an interval
 	g.SpawnEnemy()
 
@@ -171,6 +193,8 @@ func (g *Game) Update() {
 	//move enemies towards the player
 	g.TargetPlayer()
 
+	//lose health
+	g.CheckCollision()
 	//Despawn Enemy
 	g.DespawnEnemy()
 
@@ -191,8 +215,10 @@ func (g *Game) Update() {
 	g.Player.PlayerSrc.Y = g.Player.PlayerSrc.Height * float32(playerDirection)
 	//debug
 	if frameCount%60 == 0 {
-		fmt.Println(len(g.Slimes))
-		fmt.Println(g.PlayArea1, g.PlayArea2, g.PlayArea3, g.PlayArea4)
+		fmt.Println(g.Player.PlayerDest, g.Player.Position)
+		for i := range g.Slimes {
+			fmt.Println(g.Slimes[i].Position)
+		}
 	}
 	//update frame count
 	frameCount++
@@ -205,21 +231,24 @@ func (g *Game) Draw() {
 	rl.BeginDrawing()
 	rl.ClearBackground(rl.RayWhite)
 
-	backgroundOffsetX := int(g.Player.Position.X) % int(tileWidth)
-	backgroundOffsetY := int(g.Player.Position.Y) % int(tileHeight)
-
-	for y := -backgroundOffsetY; y < rl.GetScreenHeight(); y += int(tileHeight) {
-		for x := -backgroundOffsetX; x < rl.GetScreenWidth(); x += int(tileWidth) {
-			rl.DrawTexture(backgroundTexture, int32(x), int32(y), rl.White)
+	rl.BeginMode2D(cam)
+	for y := backgroundOffsetY - backgroundTexture.Height; y < int32(rl.GetScreenHeight()); y += backgroundTexture.Height {
+		for x := backgroundOffsetX - backgroundTexture.Width; x < int32(rl.GetScreenWidth()); x += backgroundTexture.Width {
+			rl.DrawTexture(backgroundTexture, x, y, rl.White)
 		}
 	}
-	rl.BeginMode2D(cam)
 
-	//render da Slimess (they're just circles rn :3)
 	for i := 0; i < len(g.Slimes); i++ {
 		rl.DrawTexture(g.Slimes[i].Texture, int32(g.Slimes[i].Position.X), int32(g.Slimes[i].Position.Y), rl.White)
 	}
-	rl.DrawTexturePro(g.Player.PlayerSprite, g.Player.PlayerSrc, g.Player.PlayerDest, rl.NewVector2(g.Player.PlayerDest.Width/2, g.Player.PlayerDest.Height/2), 0, rl.White)
+	rl.DrawTexturePro(g.Player.PlayerSprite, g.Player.PlayerSrc, g.Player.PlayerDest, rl.NewVector2(g.Player.PlayerDest.Width-34, g.Player.PlayerDest.Height-34), 0, rl.White)
+	rl.EndMode2D()
+
+	rl.DrawText(fmt.Sprintf("HP: %02d / 100", g.Player.HP), 5, 40, 40, rl.Black)
+	rl.DrawRectangle(0, 0, int32(ScreenWidth), 40, rl.Black)
+	rl.DrawRectangle(5, 5, int32(ScreenWidth)-10, 40-10, rl.Black)
+	rl.DrawRectangle(5, 5, int32(ScreenWidth*.5)-10, 40-10, rl.Yellow)
+	rl.DrawText(fmt.Sprintf("LVL: %02d", g.Player.LVL), 10, 10, 20, rl.Red)
 	rl.EndDrawing()
 }
 

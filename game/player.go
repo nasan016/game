@@ -7,6 +7,7 @@ type Player struct {
 	PlayerSrc    rl.Rectangle
 	Position     rl.Vector2
 	PlayerSprite rl.Texture2D
-
-	Speed float32
+	Speed        float32
+	HP           int
+	LVL          int
 }
