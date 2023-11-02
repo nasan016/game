@@ -232,29 +232,35 @@ func (g *Game) Draw() {
 	rl.ClearBackground(rl.RayWhite)
 
 	rl.BeginMode2D(cam)
+	//TODO fix dis background
 	for y := backgroundOffsetY - backgroundTexture.Height; y < int32(rl.GetScreenHeight()); y += backgroundTexture.Height {
 		for x := backgroundOffsetX - backgroundTexture.Width; x < int32(rl.GetScreenWidth()); x += backgroundTexture.Width {
 			rl.DrawTexture(backgroundTexture, x, y, rl.White)
 		}
 	}
 
+	//draw slimes
 	for i := 0; i < len(g.Slimes); i++ {
 		rl.DrawTexture(g.Slimes[i].Texture, int32(g.Slimes[i].Position.X), int32(g.Slimes[i].Position.Y), rl.White)
 	}
+
+	//draw player sprite
 	rl.DrawTexturePro(g.Player.PlayerSprite, g.Player.PlayerSrc, g.Player.PlayerDest, rl.NewVector2(g.Player.PlayerDest.Width-34, g.Player.PlayerDest.Height-34), 0, rl.White)
 	rl.EndMode2D()
 
 	rl.DrawText(fmt.Sprintf("HP: %02d / 100", g.Player.HP), 5, 40, 40, rl.Black)
 	rl.DrawRectangle(0, 0, int32(ScreenWidth), 40, rl.Black)
-	rl.DrawRectangle(5, 5, int32(ScreenWidth)-10, 40-10, rl.Black)
-	rl.DrawRectangle(5, 5, int32(ScreenWidth*.5)-10, 40-10, rl.Yellow)
-	rl.DrawText(fmt.Sprintf("LVL: %02d", g.Player.LVL), 10, 10, 20, rl.Red)
+	rl.DrawRectangle(5, 5, int32(ScreenWidth)-10, 40-10, rl.Blue)
+	rl.DrawRectangle(5, 5, int32(ScreenWidth*.05)-10, 40-10, rl.Yellow)
+	rl.DrawText(fmt.Sprintf("LVL: %02d", g.Player.LVL), 10, 10, 20, rl.Black)
 	rl.EndDrawing()
 }
 
 func (g *Game) Input() {
 	if rl.IsKeyDown(rl.KeyW) {
 		g.Player.PlayerDest.Y -= g.Player.Speed
+		playerMoving = true
+		playerDirection = 1
 	}
 	if rl.IsKeyDown(rl.KeyS) {
 		g.Player.PlayerDest.Y += g.Player.Speed
@@ -263,9 +269,13 @@ func (g *Game) Input() {
 	}
 	if rl.IsKeyDown(rl.KeyA) {
 		g.Player.PlayerDest.X -= g.Player.Speed
+		playerMoving = true
+		playerDirection = 2
 	}
 	if rl.IsKeyDown(rl.KeyD) {
 		g.Player.PlayerDest.X += g.Player.Speed
+		playerMoving = true
+		playerDirection = 3
 	}
 
 	g.Player.Position.X = g.Player.PlayerDest.X
