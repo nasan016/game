@@ -26,12 +26,14 @@ var (
 	playerMoving                                  bool
 	playerDirection                               int
 	playerUp, playerDown, playerRight, playerLeft bool
-	playerFrameCount                              int
 
 	backgroundOffsetX int32
 	backgroundOffsetY int32
 
 	slimeSprite rl.Texture2D
+
+	shotDelay      int
+	shotsRemaining int
 )
 
 type Game struct {
@@ -44,6 +46,7 @@ type Game struct {
 
 	Slimes []Slime
 
+	Bullets           []Bullets
 	WindowShouldClose bool
 }
 
@@ -74,6 +77,9 @@ func (g *Game) Init() {
 	frameCount = 0
 
 	cam = rl.NewCamera2D(rl.NewVector2(float32(ScreenWidth/2)-34, float32(ScreenHeight/2)-34), rl.NewVector2(float32(g.Player.PlayerDest.X-(g.Player.PlayerDest.Width/2)), float32(g.Player.PlayerDest.Y-g.Player.PlayerDest.Height/2)), 0, 2.0)
+
+	shotDelay = 20
+	shotsRemaining = 0
 }
 
 func (g *Game) Unload() {
@@ -153,8 +159,8 @@ func (g *Game) SpawnEnemy() {
 		SpawnY = minY
 	}
 
-	if frameCount%20 == 0 && len(g.Slimes) < 1 {
-		g.Slimes = append(g.Slimes, Slime{rl.NewVector2(float32(SpawnX), float32(SpawnY)), 500, slimeSprite})
+	if frameCount%20 == 0 {
+		g.Slimes = append(g.Slimes, Slime{slimeSprite, rl.NewVector2(float32(SpawnX), float32(SpawnY)), 500, 50})
 	}
 }
 
@@ -166,6 +172,18 @@ func (g *Game) DespawnEnemy() {
 			fmt.Println("OUT OF BOUNDS")
 		}
 
+	}
+}
+
+func (g *Game) UpdateBullets() {
+	for i := 0; i < len(g.Bullets); i++ {
+		if g.Bullets[i].Active {
+			g.Bullets[i].Position.X += g.Bullets[i].Velocity.X
+			g.Bullets[i].Position.Y += g.Bullets[i].Velocity.Y
+		}
+		if g.Bullets[i].Position.X < g.PlayArea1.X || g.Bullets[i].Position.X > g.PlayArea2.X {
+			g.Bullets[i].Active = false
+		}
 	}
 }
 
@@ -183,6 +201,7 @@ func (g *Game) Update() {
 
 	backgroundOffsetX = int32(g.Player.Position.X) % int32(tileWidth)
 	backgroundOffsetY = int32(g.Player.Position.Y) % int32(tileHeight)
+
 	//spawn enemy on an interval
 	g.SpawnEnemy()
 
@@ -198,9 +217,13 @@ func (g *Game) Update() {
 	//Despawn Enemy
 	g.DespawnEnemy()
 
+	g.UpdateBullets()
 	//update camera to follow player
 	cam.Target = g.Player.Position
 
+	if shotsRemaining > 0 {
+		shotsRemaining--
+	}
 	if playerMoving {
 		if frameCount%15 == 1 {
 			playerFrame++
@@ -215,10 +238,8 @@ func (g *Game) Update() {
 	g.Player.PlayerSrc.Y = g.Player.PlayerSrc.Height * float32(playerDirection)
 	//debug
 	if frameCount%60 == 0 {
-		fmt.Println(g.Player.PlayerDest, g.Player.Position)
-		for i := range g.Slimes {
-			fmt.Println(g.Slimes[i].Position)
-		}
+		fmt.Println(g.Player.Position)
+		fmt.Println(g.Bullets)
 	}
 	//update frame count
 	frameCount++
@@ -241,18 +262,36 @@ func (g *Game) Draw() {
 
 	//draw slimes
 	for i := 0; i < len(g.Slimes); i++ {
-		rl.DrawTexture(g.Slimes[i].Texture, int32(g.Slimes[i].Position.X), int32(g.Slimes[i].Position.Y), rl.White)
+		if g.Slimes[i].Position.X < g.Player.Position.X {
+			width := slimeSprite.Width
+			height := slimeSprite.Height
+
+			rl.DrawTextureRec(g.Slimes[i].Texture, rl.NewRectangle(float32(width), 0, -float32(width), float32(height)), g.Slimes[i].Position, rl.White)
+		} else {
+			rl.DrawTextureEx(g.Slimes[i].Texture, g.Slimes[i].Position, 0, 1, rl.White)
+		}
 	}
 
 	//draw player sprite
 	rl.DrawTexturePro(g.Player.PlayerSprite, g.Player.PlayerSrc, g.Player.PlayerDest, rl.NewVector2(g.Player.PlayerDest.Width-34, g.Player.PlayerDest.Height-34), 0, rl.White)
+	for _, bullet := range g.Bullets {
+		if bullet.Active {
+			rl.DrawCircleV(bullet.Position, 5, rl.Black)
+		}
+	}
 	rl.EndMode2D()
 
-	rl.DrawText(fmt.Sprintf("HP: %02d / 100", g.Player.HP), 5, 40, 40, rl.Black)
+	//draw the hp
+	rl.DrawText(fmt.Sprintf("HP: %02d / 100", g.Player.HP), 5, 40, 20, rl.Black)
+
+	//draw xp bar on top
 	rl.DrawRectangle(0, 0, int32(ScreenWidth), 40, rl.Black)
-	rl.DrawRectangle(5, 5, int32(ScreenWidth)-10, 40-10, rl.Blue)
-	rl.DrawRectangle(5, 5, int32(ScreenWidth*.05)-10, 40-10, rl.Yellow)
+	rl.DrawRectangle(5, 5, int32(ScreenWidth)-10, 40-10, rl.Black)
+	rl.DrawRectangle(5, 5, int32(ScreenWidth*.5)-10, 40-10, rl.Yellow)
+	rl.DrawRectangle(5, 5, int32(100), 40-10, rl.Pink)
+	rl.DrawRectangle(105, 5, int32(20), 40-10, rl.LightGray)
 	rl.DrawText(fmt.Sprintf("LVL: %02d", g.Player.LVL), 10, 10, 20, rl.Black)
+
 	rl.EndDrawing()
 }
 
@@ -278,6 +317,35 @@ func (g *Game) Input() {
 		playerDirection = 3
 	}
 
+	if rl.IsKeyDown(rl.KeyD) && rl.IsKeyDown(rl.KeyA) {
+		if rl.IsKeyDown(rl.KeyW) {
+			playerDirection = 1
+		} else {
+			playerDirection = 0
+		}
+	}
+
 	g.Player.Position.X = g.Player.PlayerDest.X
 	g.Player.Position.Y = g.Player.PlayerDest.Y
+
+	if rl.IsKeyDown(rl.KeyRight) && shotsRemaining == 0 {
+		x := rand.Intn(2)
+		y := rand.Int()
+
+		if y%2 == 0 {
+			x = x * -1
+		}
+		g.Bullets = append(g.Bullets, Bullets{rl.NewVector2(g.Player.PlayerDest.X+17, g.Player.PlayerDest.Y+17), rl.NewVector2(5, float32(x)), 10, true})
+		shotsRemaining = shotDelay
+	}
+	if rl.IsKeyDown(rl.KeyLeft) && shotsRemaining == 0 {
+		x := rand.Intn(2)
+		y := rand.Int()
+
+		if y%2 == 0 {
+			x = x * -1
+		}
+		g.Bullets = append(g.Bullets, Bullets{rl.NewVector2(g.Player.PlayerDest.X+17, g.Player.PlayerDest.Y+17), rl.NewVector2(-5, float32(x)), 10, true})
+		shotsRemaining = shotDelay
+	}
 }

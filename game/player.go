@@ -11,3 +11,10 @@ type Player struct {
 	HP           int
 	LVL          int
 }
+
+type Bullets struct {
+	Position rl.Vector2
+	Velocity rl.Vector2
+	Damage   int
+	Active   bool
+}
