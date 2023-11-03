@@ -1,23 +1,31 @@
 package game
 
-import rl "github.com/gen2brain/raylib-go/raylib"
+import (
+	"time"
+
+	rl "github.com/gen2brain/raylib-go/raylib"
+)
 
 type Player struct {
-	PlayerDest      rl.Rectangle
-	PlayerSrc       rl.Rectangle
-	Position        rl.Vector2
-	PlayerSprite    rl.Texture2D
-	Speed           float32
-	HP              int
-	LVL             int
-	frameCount      int
-	playerMoving    bool
-	playerDirection int
-	shotDelay       int
-	shotsRemaining  int
-	Bullets         []Bullets
-	FrameCount      int
-	playerFrame     int
+	PlayerDest       rl.Rectangle
+	PlayerSrc        rl.Rectangle
+	Position         rl.Vector2
+	PlayerSprite     rl.Texture2D
+	Speed            float32
+	HP               int
+	LVL              int
+	frameCount       int
+	playerMoving     bool
+	playerDirection  int
+	shotDelay        int
+	shotsRemaining   int
+	FrameCount       int
+	playerFrame      int
+	IsInvincible     bool
+	InvincibilityEnd time.Time
+	BulletsShot      int
+	ReloadTimer      time.Time
+	Reloading        bool
 }
 
 func InitPlayer(playerSprite rl.Texture2D) Player {
@@ -34,9 +42,41 @@ func InitPlayer(playerSprite rl.Texture2D) Player {
 		playerDirection: 0,
 		shotDelay:       20,
 		shotsRemaining:  0,
-		Bullets:         []Bullets{},
 		FrameCount:      0,
 		playerFrame:     0,
+		BulletsShot:     0,
+		Reloading:       false,
+	}
+}
+
+/*
+Logic for player getting hit is split into two parts
+GetHit() and ResetInvincibility()
+*/
+
+func (p *Player) IsReloading() {
+	if p.BulletsShot == 2 {
+		p.BulletsShot = 0
+		p.Reloading = true
+		p.ReloadTimer = time.Now().Add(1500 * time.Millisecond)
+	}
+
+	if time.Now().After(p.ReloadTimer) {
+		p.Reloading = false
+	}
+}
+
+func (p *Player) GetHit() {
+	if !p.IsInvincible {
+		p.HP -= 10
+		p.IsInvincible = true
+		p.InvincibilityEnd = time.Now().Add(1 * time.Second)
+	}
+}
+
+func (p *Player) ResetInvincibility() {
+	if p.IsInvincible && time.Now().After(p.InvincibilityEnd) {
+		p.IsInvincible = false
 	}
 }
 
@@ -99,12 +139,13 @@ func (p *Player) UpdateFrame() {
 }
 
 func (p *Player) DrawPlayer() {
-	rl.DrawTexturePro(p.PlayerSprite, p.PlayerSrc, p.PlayerDest, rl.NewVector2(p.PlayerDest.Width-34, p.PlayerDest.Height-34), 0, rl.White)
-}
+	if p.IsInvincible {
+		if p.FrameCount%30 < 5 {
 
-type Bullets struct {
-	Position rl.Vector2
-	Velocity rl.Vector2
-	Damage   int
-	Active   bool
+		} else {
+			rl.DrawTexturePro(p.PlayerSprite, p.PlayerSrc, p.PlayerDest, rl.NewVector2(p.PlayerDest.Width-34, p.PlayerDest.Height-34), 0, rl.DarkBlue)
+		}
+	} else {
+		rl.DrawTexturePro(p.PlayerSprite, p.PlayerSrc, p.PlayerDest, rl.NewVector2(p.PlayerDest.Width-34, p.PlayerDest.Height-34), 0, rl.White)
+	}
 }
