@@ -63,15 +63,7 @@ func (g *Game) Init() {
 	playerSprite = rl.LoadTexture("res/player-sprites.png")
 	slimeSprite = rl.LoadTexture("res/slime.png")
 
-	g.Player = Player{
-		rl.NewRectangle(ScreenHeight/2, ScreenWidth/2, 34, 34),
-		rl.NewRectangle(0, 0, 34, 34),
-		rl.NewVector2(g.Player.PlayerDest.X, g.Player.PlayerDest.Y),
-		playerSprite,
-		1.5,
-		100,
-		0,
-	}
+	g.Player = InitPlayer(playerSprite)
 
 	g.CreatePlayArea()
 	frameCount = 0
@@ -108,9 +100,11 @@ func (g *Game) CheckCollision() {
 func (g *Game) TargetPlayer() {
 	var seperationRadius float32 = 35
 	for i := range g.Slimes {
-		g.Slimes[i].Position.X += (g.Player.Position.X - g.Slimes[i].Position.X) / 300
-		g.Slimes[i].Position.Y += (g.Player.Position.Y - g.Slimes[i].Position.Y) / 300
+		direction := rl.Vector2Subtract(g.Player.Position, g.Slimes[i].Position)
+		direction = rl.Vector2Normalize(direction)
 
+		g.Slimes[i].Position.X += direction.X * g.Slimes[i].Speed
+		g.Slimes[i].Position.Y += direction.Y * g.Slimes[i].Speed
 		for j := range g.Slimes {
 			if i != j {
 				dx := g.Slimes[i].Position.X - g.Slimes[j].Position.X
@@ -160,7 +154,7 @@ func (g *Game) SpawnEnemy() {
 	}
 
 	if frameCount%20 == 0 {
-		g.Slimes = append(g.Slimes, Slime{slimeSprite, rl.NewVector2(float32(SpawnX), float32(SpawnY)), 500, 50})
+		g.Slimes = append(g.Slimes, Slime{slimeSprite, rl.NewVector2(float32(SpawnX), float32(SpawnY)), 1, 50})
 	}
 }
 
@@ -196,9 +190,6 @@ func (g *Game) Update() {
 		g.WindowShouldClose = true
 	}
 
-	g.Player.Position.X = g.Player.PlayerDest.X
-	g.Player.Position.Y = g.Player.PlayerDest.Y
-
 	backgroundOffsetX = int32(g.Player.Position.X) % int32(tileWidth)
 	backgroundOffsetY = int32(g.Player.Position.Y) % int32(tileHeight)
 
@@ -224,18 +215,9 @@ func (g *Game) Update() {
 	if shotsRemaining > 0 {
 		shotsRemaining--
 	}
-	if playerMoving {
-		if frameCount%15 == 1 {
-			playerFrame++
-		}
-	}
 
-	if playerFrame > 2 {
-		playerFrame = 1
-	}
+	g.Player.UpdateFrame()
 
-	g.Player.PlayerSrc.X = g.Player.PlayerSrc.Width * float32(playerFrame)
-	g.Player.PlayerSrc.Y = g.Player.PlayerSrc.Height * float32(playerDirection)
 	//debug
 	if frameCount%60 == 0 {
 		fmt.Println(g.Player.Position)
@@ -273,10 +255,10 @@ func (g *Game) Draw() {
 	}
 
 	//draw player sprite
-	rl.DrawTexturePro(g.Player.PlayerSprite, g.Player.PlayerSrc, g.Player.PlayerDest, rl.NewVector2(g.Player.PlayerDest.Width-34, g.Player.PlayerDest.Height-34), 0, rl.White)
+	g.Player.DrawPlayer()
 	for _, bullet := range g.Bullets {
 		if bullet.Active {
-			rl.DrawCircleV(bullet.Position, 5, rl.Black)
+			rl.DrawCircleV(bullet.Position, 8, rl.Black)
 		}
 	}
 	rl.EndMode2D()
@@ -296,56 +278,34 @@ func (g *Game) Draw() {
 }
 
 func (g *Game) Input() {
-	if rl.IsKeyDown(rl.KeyW) {
-		g.Player.PlayerDest.Y -= g.Player.Speed
-		playerMoving = true
-		playerDirection = 1
-	}
-	if rl.IsKeyDown(rl.KeyS) {
-		g.Player.PlayerDest.Y += g.Player.Speed
-		playerMoving = true
-		playerDirection = 0
-	}
-	if rl.IsKeyDown(rl.KeyA) {
-		g.Player.PlayerDest.X -= g.Player.Speed
-		playerMoving = true
-		playerDirection = 2
-	}
-	if rl.IsKeyDown(rl.KeyD) {
-		g.Player.PlayerDest.X += g.Player.Speed
-		playerMoving = true
-		playerDirection = 3
-	}
 
-	if rl.IsKeyDown(rl.KeyD) && rl.IsKeyDown(rl.KeyA) {
-		if rl.IsKeyDown(rl.KeyW) {
-			playerDirection = 1
-		} else {
-			playerDirection = 0
-		}
-	}
-
-	g.Player.Position.X = g.Player.PlayerDest.X
-	g.Player.Position.Y = g.Player.PlayerDest.Y
+	g.Player.Move()
 
 	if rl.IsKeyDown(rl.KeyRight) && shotsRemaining == 0 {
-		x := rand.Intn(2)
-		y := rand.Int()
 
-		if y%2 == 0 {
-			x = x * -1
-		}
-		g.Bullets = append(g.Bullets, Bullets{rl.NewVector2(g.Player.PlayerDest.X+17, g.Player.PlayerDest.Y+17), rl.NewVector2(5, float32(x)), 10, true})
+		g.Bullets = append(g.Bullets, Bullets{rl.NewVector2(g.Player.PlayerDest.X+17, g.Player.PlayerDest.Y+17), rl.NewVector2(5, 0), 10, true})
+		g.Bullets = append(g.Bullets, Bullets{rl.NewVector2(g.Player.PlayerDest.X+17, g.Player.PlayerDest.Y+17), rl.NewVector2(5, 1), 10, true})
+		g.Bullets = append(g.Bullets, Bullets{rl.NewVector2(g.Player.PlayerDest.X+17, g.Player.PlayerDest.Y+17), rl.NewVector2(5, -1), 10, true})
 		shotsRemaining = shotDelay
 	}
 	if rl.IsKeyDown(rl.KeyLeft) && shotsRemaining == 0 {
-		x := rand.Intn(2)
-		y := rand.Int()
 
-		if y%2 == 0 {
-			x = x * -1
-		}
-		g.Bullets = append(g.Bullets, Bullets{rl.NewVector2(g.Player.PlayerDest.X+17, g.Player.PlayerDest.Y+17), rl.NewVector2(-5, float32(x)), 10, true})
+		g.Bullets = append(g.Bullets, Bullets{rl.NewVector2(g.Player.PlayerDest.X+17, g.Player.PlayerDest.Y+17), rl.NewVector2(-5, 0), 10, true})
+		g.Bullets = append(g.Bullets, Bullets{rl.NewVector2(g.Player.PlayerDest.X+17, g.Player.PlayerDest.Y+17), rl.NewVector2(-5, 1), 10, true})
+		g.Bullets = append(g.Bullets, Bullets{rl.NewVector2(g.Player.PlayerDest.X+17, g.Player.PlayerDest.Y+17), rl.NewVector2(-5, -1), 10, true})
+		shotsRemaining = shotDelay
+	}
+	if rl.IsKeyDown(rl.KeyUp) && shotsRemaining == 0 {
+		g.Bullets = append(g.Bullets, Bullets{rl.NewVector2(g.Player.PlayerDest.X+17, g.Player.PlayerDest.Y+17), rl.NewVector2(0, -5), 10, true})
+		g.Bullets = append(g.Bullets, Bullets{rl.NewVector2(g.Player.PlayerDest.X+17, g.Player.PlayerDest.Y+17), rl.NewVector2(1, -5), 10, true})
+		g.Bullets = append(g.Bullets, Bullets{rl.NewVector2(g.Player.PlayerDest.X+17, g.Player.PlayerDest.Y+17), rl.NewVector2(-1, -5), 10, true})
+		shotsRemaining = shotDelay
+	}
+
+	if rl.IsKeyDown(rl.KeyDown) && shotsRemaining == 0 {
+		g.Bullets = append(g.Bullets, Bullets{rl.NewVector2(g.Player.PlayerDest.X+17, g.Player.PlayerDest.Y+17), rl.NewVector2(0, 5), 10, true})
+		g.Bullets = append(g.Bullets, Bullets{rl.NewVector2(g.Player.PlayerDest.X+17, g.Player.PlayerDest.Y+17), rl.NewVector2(1, 5), 10, true})
+		g.Bullets = append(g.Bullets, Bullets{rl.NewVector2(g.Player.PlayerDest.X+17, g.Player.PlayerDest.Y+17), rl.NewVector2(-1, 5), 10, true})
 		shotsRemaining = shotDelay
 	}
 }
